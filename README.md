@@ -92,4 +92,41 @@ go build ./cmd/api
 cmd/api/                 HTTP server entry point
 internal/calculator/     Arithmetic operations and unit tests
 internal/httpapi/        HTTP handler and request validation tests
+Dockerfile               Standalone API container build
+.dockerignore            Files excluded from the Docker build context
 ```
+
+## Docker image
+
+A standalone Docker image is provided by `Dockerfile`. It uses a multi-stage build:
+
+1. The build stage uses Go and compiles `/src/cmd/api` as a static Linux executable.
+2. The runtime stage copies only the executable into a small Alpine image.
+3. The container runs as a non-root `app` user and listens on port `8080`.
+
+Build the API image from this directory:
+
+```sh
+docker build -t calc-backend:local .
+```
+
+Run it on port `8080`:
+
+```sh
+docker run --rm -p 8080:8080 --name calc-backend calc-backend:local
+```
+
+Test the running image:
+
+```sh
+curl -i http://localhost:8080/api/v1/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"27.02+20"}'
+```
+
+The response should contain:
+
+```json
+{"result":47.02}
+```
+
