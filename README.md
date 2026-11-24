@@ -71,52 +71,26 @@ Error responses use this JSON shape:
 
 All responses use `Content-Type: application/json`.
 
-## Development
+## API examples
 
-Run the test suite and static checks from this directory:
-
-```sh
-go test ./...
-go vet ./...
-```
-
-Build the API executable with:
+Calculate a mixed-precedence expression:
 
 ```sh
-go build ./cmd/api
+curl -i http://localhost:8080/api/v1/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"1+2*3-2^2"}'
 ```
 
-## Project layout
+Expected response:
 
-```text
-cmd/api/                 HTTP server entry point
-internal/calculator/     Arithmetic operations and unit tests
-internal/httpapi/        HTTP handler and request validation tests
-Dockerfile               Standalone API container build
-.dockerignore            Files excluded from the Docker build context
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"result":3}
 ```
 
-## Docker image
-
-A standalone Docker image is provided by `Dockerfile`. It uses a multi-stage build:
-
-1. The build stage uses Go and compiles `/src/cmd/api` as a static Linux executable.
-2. The runtime stage copies only the executable into a small Alpine image.
-3. The container runs as a non-root `app` user and listens on port `8080`.
-
-Build the API image from this directory:
-
-```sh
-docker build -t calc-backend:local .
-```
-
-Run it on port `8080`:
-
-```sh
-docker run --rm -p 8080:8080 --name calc-backend calc-backend:local
-```
-
-Test the running image:
+Test decimal arithmetic:
 
 ```sh
 curl -i http://localhost:8080/api/v1/calculate \
@@ -124,9 +98,34 @@ curl -i http://localhost:8080/api/v1/calculate \
   -d '{"expression":"27.02+20"}'
 ```
 
-The response should contain:
+Test invalid syntax:
 
-```json
-{"result":47.02}
+```sh
+curl -i http://localhost:8080/api/v1/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"1+4+3-"}'
 ```
+
+Expected response: `400 Bad Request` with `{"error":"invalid expression"}`.
+
+Test division by zero:
+
+```sh
+curl -i http://localhost:8080/api/v1/calculate \
+  -H 'Content-Type: application/json' \
+  -d '{"expression":"1/0"}'
+```
+
+Expected response: `422 Unprocessable Entity` with `{"error":"division by zero"}`.
+
+## Backend design decisions and assumptions
+
+- The API exposes one infix-expression endpoint instead of separate endpoints for each arithmetic operation.
+- Go `float64` is used for operator calculations and JSON results. The supported absolute numeric range is limited to `9,007,199,254,740,991` so integer results remain exact relative to JavaScript `Number` behavior.
+- Final expressions are normalized to reduce ordinary decimal floating-point display noise, while meaningful large-number increments are preserved.
+- Operator precedence is `^` first, followed by `*` and `/`, then `+` and `-`. Power is right-associative.
+- The parser supports parentheses, unary signs, decimal literals, and scientific notation. Consecutive `+`/`-` signs are rejected.
+- Invalid syntax is a `400` response; arithmetic constraints such as division by zero or out-of-range numbers are `422` responses.
+- JSON has a 4 KiB body limit and rejects unknown fields and trailing JSON values.
+- The HTTP server is a standard-library `net/http` implementation to keep dependencies and deployment small.
 
