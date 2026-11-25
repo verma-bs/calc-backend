@@ -129,3 +129,6 @@ Expected response: `422 Unprocessable Entity` with `{"error":"division by zero"}
 - JSON has a 4 KiB body limit and rejects unknown fields and trailing JSON values.
 - The HTTP server is a standard-library `net/http` implementation to keep dependencies and deployment small.
 
+## Test Coverage
+ coverage.out under root directory
+
